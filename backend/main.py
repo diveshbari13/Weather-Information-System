@@ -57,7 +57,7 @@ def get_weather(city: str):
     forecast_params = {
         "key": API_KEY,
         "q": city,
-        "days": 1,
+        "days": 7,
         "aqi": "no",
         "alerts": "no"
     }
@@ -70,23 +70,39 @@ def get_weather(city: str):
 
     current_hour=now.hour
     start_hour=max(0,current_hour-2)
-    end_hour=min(len(hourly_data),current_hour+3)
+    end_hour=min(len(hourly_data),current_hour+4)
     sliced_hourly=hourly_data[start_hour:end_hour]
-    hourly_forecast = [
+
+    daily_forecast = [
         {
-            "time": hour["time"],
-            "temp_c": hour["temp_c"],
-            "condition": hour["condition"]["text"],
-            "icon": hour["condition"]["icon"],
-            "humidity": hour["humidity"],
-            "chance_of_rain": hour.get("chance_of_rain", 0),
-            "is_current": (hour["time"].split(" ")[1][:2]==str(now.hour).zfill(2))
+            "date": day["date"],
+            "min_temp": day["day"]["mintemp_c"],
+            "max_temp": day["day"]["maxtemp_c"],
+            "condition": day["day"]["condition"]["text"],
+            "icon": day["day"]["condition"]["icon"],
+            "humidity": day["day"]["avghumidity"],
+            "chance_of_rain": day["day"].get("daily_chance_of_rain", 0),
+            "wind_kph": day["day"]["maxwind_kph"],
+            "hourly":[
+            {
+                "time": hour["time"],
+                "temp_c": hour["temp_c"],
+                "condition": hour["condition"]["text"],
+                "icon": hour["condition"]["icon"],
+                "humidity": hour["humidity"],
+                "chance_of_rain": hour.get("chance_of_rain", 0),
+                "is_current": (hour["time"].split(" ")[1][:2] == str(now.hour).zfill(2))
+            }
+            for hour in day["hour"]
+        ]
         }
-        for hour in sliced_hourly
+        for day in forecast_data["forecast"]["forecastday"]
     ]
 
     result = {
         "city": location["name"],
+        "lat": location["lat"],
+        "lon": location["lon"],
         "temperature": f"{current['temp_c']}°C",
         "humidity": f"{current['humidity']}%",
         "pressure": f"{current['pressure_mb']} hPa",
@@ -96,7 +112,7 @@ def get_weather(city: str):
         "sunset": astro["sunset"],
         "rainfall": f"{forecast_day['totalprecip_mm']} mm",
         "chance_of_rain": f"{forecast_day['daily_chance_of_rain']}%",
-        "hourly": hourly_forecast
+        "daily": daily_forecast
     }
 
     return result
