@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import './App.css';
 import { FaSearch } from 'react-icons/fa';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
@@ -27,6 +27,18 @@ function RecenterMap({ lat, lon }) {
 
   return null;
 }
+function preprocessWeatherData(data) {
+  return {
+    city: data.city,
+    lat: data.lat,
+    lon: data.lon,
+    temperature: parseFloat(data.temperature),     // "26.7°C" -> 26.7
+    humidity: parseFloat(data.humidity),           // "72%" -> 72
+    precipitation: data.rainfall ? parseFloat(data.rainfall) : 0,
+    
+    condition: data.condition || "Unknown",
+  };
+}
 
 
 function App() {
@@ -40,14 +52,14 @@ function App() {
   const [precipitationOpacity, setPrecipitationOpacity]= useState(0.8);
   const [temperatureOpacity, setTemperatureOpacity] = useState(0.2);
   const [windOpacity, setWindOpacity] = useState(0.5);
- 
-  
-
-
+  const [outfitSuggestion, setOutfitSuggestion]=useState('');
   const apiKey = 'ad505593a4764c2b750b5b25ca804acb';
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+
 
   const getWeather = async () => {
     if (!city) return;
+  
 
     setLoading(true);
     setError('');
@@ -76,6 +88,39 @@ function App() {
 
     setLoading(false);
   };
+  const fetchOutfitSuggestion = useCallback(async (weatherData) => {
+    const processedData = preprocessWeatherData(weatherData);
+    console.log("Sending to backend:",processedData);
+  const apiUrl = `${BACKEND_URL}/outfit-suggestion`;
+  console.log("Sending to backend:", weatherData);
+
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(processedData),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    document.getElementById("outfitSuggestion").innerText = data.outfit;
+    setOutfitSuggestion(data.suggestion);
+  } catch (error) {
+    console.error('Error getting outfit suggestion:', error);
+  }
+},[BACKEND_URL,setOutfitSuggestion]);
+
+  useEffect(() => {
+  if (weather) {
+    fetchOutfitSuggestion(weather);
+  }
+}, [weather,fetchOutfitSuggestion]);
 
   return (
     <div className="container">
@@ -96,11 +141,6 @@ function App() {
           <FaSearch/>
         </button>
       </div>
-
-      
-
-
-     
 
       {loading && (
         <div className="spinner">
@@ -135,6 +175,11 @@ function App() {
       </>
           )}
       </div>
+      <h3>AI Outfit Suggestion</h3>
+      <div className="section">
+         <p id="outfitSuggestion">{outfitSuggestion || 'No suggestion available.'}</p>
+      </div>
+
       
       </div>
 

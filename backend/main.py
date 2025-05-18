@@ -4,6 +4,31 @@ from fastapi.responses import FileResponse
 import requests
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
+import openai
+from openai import OpenAI
+import os
+from dotenv import load_dotenv
+#from gradio.themes.builder_app import suggestions
+#from grpc.framework.interfaces.base.utilities import completion
+from pydantic import BaseModel, Field
+import logging
+
+logging.basicConfig(level=logging.INFO)
+load_dotenv()
+
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+class WeatherData(BaseModel):
+    temperature: float
+    humidity: float
+    wind: float = 0
+    precipitation: float = 0
+    cloud_cover: float = 0
+    condition: str
+    city: str = "Unknown"
+    lat: float = 0
+    lon: float = 0
 
 app = FastAPI()
 app.add_middleware(
@@ -16,10 +41,45 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-API_KEY = "e4fa4adb2b1948d88cb110938251105"
+API_KEY = os.getenv("Weather_API_KEY")
 BASE_CURRENT_URL = "http://api.weatherapi.com/v1/current.json"
 BASE_ASTRONOMY_URL = "http://api.weatherapi.com/v1/astronomy.json"
 BASE_FORECAST_URL = "http://api.weatherapi.com/v1/forecast.json"
+
+@app.post("/outfit-suggestion")
+async def outfit_suggestion(data: WeatherData):
+    logging.info(f"Received weather data: {data}")
+    try:
+        if os.getenv("USE_MOCK_OPENAI", "False") == "True":
+            mock_response = f"It's {data.temperature}°C with {data.condition.lower()} in {data.city}. " \
+                            "A light rain jacket and breathable clothes would be ideal today."
+            print("OUTFIT SUGGESTION:", mock_response)
+
+            return {"outfit": mock_response}
+
+        prompt = (
+            f"The current weather in {data.city} is {data.temperature}°C, "
+            f"{data.condition}, humidity {data.humidity}%, wind {data.wind} km/h. "
+            f"What should someone wear today based on this weather?"
+        )
+
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a fashion assistant."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        outfit = response.choices[0].message.content.strip()
+        return {"outfit": outfit}
+
+    except Exception as e:
+        print("Error generating outfit suggestion:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 @app.get("/")
 def read_root():
